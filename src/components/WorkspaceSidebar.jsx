@@ -1,3 +1,5 @@
+import { useAuth } from '../context/AuthContext';
+
 function formatRelativeUpdate(value) {
   const date = new Date(value);
 
@@ -22,6 +24,8 @@ export default function WorkspaceSidebar({
   onRemoveWorkspace,
   persistenceError,
 }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   return (
     <div className="card p-5 sm:p-6">
       <div className="flex items-start justify-between gap-4">
@@ -37,7 +41,7 @@ export default function WorkspaceSidebar({
       </div>
 
       <p className="mt-3 text-sm leading-6 text-muted">
-        Every upload creates an isolated workspace and persists it in this browser so refreshes do not wipe the operator&apos;s progress.
+        Each workspace represents one uploaded semester workbook. Your workspaces are saved in the database and accessible from any device.
       </p>
 
       {persistenceError ? (
@@ -85,16 +89,24 @@ export default function WorkspaceSidebar({
                 >
                   <p className="truncate text-base font-semibold text-ink">{workspace.name}</p>
                   <p className="mt-1 text-sm text-muted">{workspace.fileName || 'Uploaded workbook'}</p>
+                  {workspace.createdByUsername && (
+                    <p className="mt-0.5 text-xs text-muted">
+                      Created by{' '}
+                      <span className="font-semibold text-slate-600">{workspace.createdByUsername}</span>
+                    </p>
+                  )}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => onRemoveWorkspace(workspace.id)}
-                  className="rounded-[10px] border border-line px-3 py-1.5 text-xs font-semibold text-muted transition hover:bg-slate-50"
-                  aria-label={`Remove ${workspace.name}`}
-                >
-                  Remove
-                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveWorkspace(workspace.id)}
+                    className="rounded-[10px] border border-line px-3 py-1.5 text-xs font-semibold text-muted transition hover:bg-slate-50"
+                    aria-label={`Remove ${workspace.name}`}
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">

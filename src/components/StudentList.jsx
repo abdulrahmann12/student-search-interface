@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getStudentDisplayName, getStudentSecondaryName } from '../utils/students';
 
 const STATUS_FILTERS = ['All', 'Match', 'Conflict', 'Pending'];
+const PAGE_SIZE = 50;
 
 const SORT_OPTIONS = [
   { value: 'default', label: 'Default order' },
@@ -77,6 +78,10 @@ export default function StudentList({
 }) {
   const [statusFilter, setStatusFilter] = useState('All');
   const [sortBy, setSortBy] = useState('default');
+  const [page, setPage] = useState(1);
+
+  // Reset to page 1 when filter or sort changes
+  useEffect(() => { setPage(1); }, [statusFilter, sortBy]);
 
   const displayStudents = useMemo(() => {
     let list = students;
@@ -110,6 +115,16 @@ export default function StudentList({
 
     return list;
   }, [students, statusFilter, sortBy, reconciliationByRowId]);
+
+  const totalPages   = Math.ceil(displayStudents.length / PAGE_SIZE);
+  const safePage     = Math.min(Math.max(page, 1), Math.max(1, totalPages));
+  const pagedStudents = useMemo(
+    () => {
+      // if filter/sort changed and current page is out of range, render first page
+      return displayStudents.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+    },
+    [displayStudents, safePage],
+  );
 
   if (isLoading) {
     return (
@@ -169,7 +184,10 @@ export default function StudentList({
         <span>ID</span>
         <span>Name</span>
         <span className="text-center">Status</span>
-        <span className="text-right">{displayStudents.length} shown</span>
+        <span className="text-right">
+          {displayStudents.length} shown
+          {totalPages > 1 && ` · p. ${safePage}/${totalPages}`}
+        </span>
       </div>
 
       {!displayStudents.length ? (
@@ -180,7 +198,7 @@ export default function StudentList({
       ) : null}
 
       <div className="divide-y divide-line">
-        {displayStudents.map((student) => {
+        {pagedStudents.map((student) => {
           const reconciliation = reconciliationByRowId[student.rowId];
           const isActive = student.rowId === activeStudentRowId;
           const isHighlighted = student.rowId === highlightedStudentRowId;
@@ -234,6 +252,31 @@ export default function StudentList({
           );
         })}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-line bg-slate-50 px-3 py-2">
+          <button
+            type="button"
+            disabled={safePage <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="btn-secondary px-3 py-1 text-xs disabled:opacity-40"
+          >
+            ← Previous
+          </button>
+          <span className="text-xs text-muted">
+            Page {safePage} of {totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={safePage >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            className="btn-secondary px-3 py-1 text-xs disabled:opacity-40"
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

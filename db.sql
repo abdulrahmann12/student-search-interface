@@ -12,6 +12,13 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS `workspace_assignments`;
+DROP TABLE IF EXISTS `action_logs`;
+DROP TABLE IF EXISTS `manual_selections`;
+DROP TABLE IF EXISTS `workspaces`;
+DROP TABLE IF EXISTS `users`;
+
+
 -- -------------------------------------------------------
 -- Table: users
 -- -------------------------------------------------------
@@ -103,6 +110,32 @@ CREATE TABLE IF NOT EXISTS `action_logs` (
   CONSTRAINT `fk_log_user`
     FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
     ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------
+-- Table: workspace_assignments
+-- Maps which users have been granted access to a workspace.
+-- Admins always have full access regardless of this table.
+-- -------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `workspace_assignments` (
+  `id`           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `workspace_id` VARCHAR(64)  NOT NULL,
+  `user_id`      INT UNSIGNED NOT NULL,
+  `assigned_at`  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `assigned_by`  INT UNSIGNED NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_wa_ws_user` (`workspace_id`, `user_id`),
+  KEY `idx_wa_workspace` (`workspace_id`),
+  KEY `idx_wa_user`      (`user_id`),
+  CONSTRAINT `fk_wa_workspace`
+    FOREIGN KEY (`workspace_id`) REFERENCES `workspaces` (`id`)
+    ON DELETE CASCADE,
+  CONSTRAINT `fk_wa_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+    ON DELETE CASCADE,
+  CONSTRAINT `fk_wa_by`
+    FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`)
+    ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

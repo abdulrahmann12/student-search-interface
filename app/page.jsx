@@ -1,6 +1,7 @@
 'use client';
 
 import ExcelUpload from '@/src/components/ExcelUpload';
+import { useAuth } from '@/src/context/AuthContext';
 import { useWorkspaceContext } from '@/src/context/WorkspaceContext';
 import { useExcelParser } from '@/src/hooks/useExcelParser';
 import { buildWorkspaceSummary } from '@/src/utils/reconciliation';
@@ -14,10 +15,12 @@ function formatDate(value) {
 }
 
 export default function HomePage() {
+  const { user, isLoading: isAuthLoading } = useAuth();
   const { workspaces, actions, isHydrated, persistenceError } = useWorkspaceContext();
   const { isParsing, error, pendingFileName, parseFile } = useExcelParser();
   const router = useRouter();
   const wasParsing = useRef(false);
+  const isAdmin = user?.role === 'admin';
 
   // Navigate to newly created workspace after upload completes
   useEffect(() => {
@@ -41,20 +44,24 @@ export default function HomePage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-ink">Dashboard</h1>
         <p className="mt-1 text-sm text-muted">
-          Upload a semester workbook or continue a saved workspace.
+          {isAdmin
+            ? 'Upload a semester workbook or continue a saved workspace.'
+            : 'Select a workspace assigned to you to begin reviewing students.'}
         </p>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[420px_minmax(0,1fr)]">
-        {/* Upload */}
-        <div>
-          <ExcelUpload
-            onFileSelect={parseFile}
-            isLoading={isParsing}
-            fileName={pendingFileName}
-            error={error}
-          />
-        </div>
+      <div className={['grid gap-8', isAdmin ? 'lg:grid-cols-[420px_minmax(0,1fr)]' : ''].join(' ')}>
+        {/* Upload — admin only */}
+        {isAdmin && (
+          <div>
+            <ExcelUpload
+              onFileSelect={parseFile}
+              isLoading={isParsing}
+              fileName={pendingFileName}
+              error={error}
+            />
+          </div>
+        )}
 
         {/* Workspace list */}
         <div>
@@ -72,12 +79,16 @@ export default function HomePage() {
           ) : null}
 
           {!isHydrated ? (
-            <div className="card p-6 text-center text-sm text-muted">Restoring saved workspaces...</div>
+            <div className="card p-6 text-center text-sm text-muted">
+              {isAuthLoading ? 'Loading…' : 'Restoring saved workspaces…'}
+            </div>
           ) : !workspaces.length ? (
             <div className="card border-dashed p-12 text-center">
               <p className="text-base font-semibold text-ink">No workspaces yet</p>
               <p className="mt-2 text-sm text-muted">
-                Upload an Excel workbook on the left to create your first workspace.
+                {isAdmin
+                  ? 'Upload an Excel workbook on the left to create your first workspace.'
+                  : 'No workspaces have been assigned to your account yet. Contact an admin.'}
               </p>
             </div>
           ) : (
@@ -94,6 +105,14 @@ export default function HomePage() {
                         <p className="mt-0.5 text-sm text-muted">
                           {workspace.fileName || 'Uploaded workbook'}
                         </p>
+                        {workspace.createdByUsername && (
+                          <p className="mt-0.5 text-xs text-muted">
+                            Created by{' '}
+                            <span className="font-semibold text-slate-600">
+                              {workspace.createdByUsername}
+                            </span>
+                          </p>
+                        )}
                       </div>
                       <div className="flex flex-shrink-0 items-center gap-2">
                         <button
@@ -103,13 +122,15 @@ export default function HomePage() {
                         >
                           Open
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => actions.removeWorkspace(workspace.id)}
-                          className="btn-secondary px-3 py-1.5 text-xs"
-                        >
-                          Remove
-                        </button>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => actions.removeWorkspace(workspace.id)}
+                            className="btn-secondary px-3 py-1.5 text-xs"
+                          >
+                            Remove
+                          </button>
+                        )}
                       </div>
                     </div>
 

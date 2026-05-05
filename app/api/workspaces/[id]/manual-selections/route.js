@@ -2,6 +2,15 @@ import pool from '@/lib/db';
 import { createLog } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 
+async function hasWorkspaceAccess(workspaceId, userId, role) {
+  if (role === 'admin') return true;
+  const [rows] = await pool.query(
+    'SELECT id FROM workspace_assignments WHERE workspace_id = ? AND user_id = ?',
+    [workspaceId, userId],
+  );
+  return rows.length > 0;
+}
+
 // -------------------------------------------------------
 // PUT /api/workspaces/[id]/manual-selections
 // Upsert a student's manual course selection.
@@ -16,6 +25,7 @@ import { NextResponse } from 'next/server';
 export async function PUT(request, { params }) {
   const userId   = Number(request.headers.get('x-user-id'));
   const username = request.headers.get('x-username') ?? '';
+  const role     = request.headers.get('x-user-role') ?? 'user';
   const { id }   = await params;
 
   const body = await request.json().catch(() => null);
@@ -23,14 +33,13 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ error: 'rowId is required.' }, { status: 400 });
   }
 
-  // Ensure the workspace belongs to the current user
-  const [ownerCheck] = await pool.query(
-    'SELECT id FROM workspaces WHERE id = ? AND created_by = ?',
-    [id, userId],
-  );
-  if (!ownerCheck[0]) {
+  if (!(await hasWorkspaceAccess(id, userId, role))) {
     return NextResponse.json({ error: 'Workspace not found.' }, { status: 404 });
   }
+
+  // Fetch workspace name for richer log details
+  const [wsRows] = await pool.query('SELECT name FROM workspaces WHERE id = ?', [id]);
+  const workspaceName = wsRows[0]?.name ?? null;
 
   const { rowId, selectedCourseKeys, reviewedAt, lastEditedAt } = body;
 
@@ -66,21 +75,20 @@ export async function PUT(request, { params }) {
   await createLog(userId, username, action, {
     workspaceId: id,
     studentRowId: rowId,
+    details: { workspaceName, courseCount: (selectedCourseKeys ?? []).length },
   });
 
   return NextResponse.json({ ok: true });
 }
 
 // -------------------------------------------------------
-// DELETE /api/workspaces/[id]/manual-selections/[rowId]
-// Remove a student's review (reset).
-// Note: rowId is passed as a query parameter here because
-// Next.js App Router doesn't support optional catch-all
-// segments in the same file; see the [rowId] route file.
+// DELETE /api/workspaces/[id]/manual-selections
+// Remove a student's review (reset). rowId via query param.
 // -------------------------------------------------------
 export async function DELETE(request, { params }) {
   const userId   = Number(request.headers.get('x-user-id'));
   const username = request.headers.get('x-username') ?? '';
+  const role     = request.headers.get('x-user-role') ?? 'user';
   const { id }   = await params;
 
   const { searchParams } = new URL(request.url);
@@ -90,13 +98,12 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: 'rowId query parameter is required.' }, { status: 400 });
   }
 
-  const [ownerCheck] = await pool.query(
-    'SELECT id FROM workspaces WHERE id = ? AND created_by = ?',
-    [id, userId],
-  );
-  if (!ownerCheck[0]) {
+  if (!(await hasWorkspaceAccess(id, userId, role))) {
     return NextResponse.json({ error: 'Workspace not found.' }, { status: 404 });
   }
+
+  const [wsRows] = await pool.query('SELECT name FROM workspaces WHERE id = ?', [id]);
+  const workspaceName = wsRows[0]?.name ?? null;
 
   await pool.query(
     'DELETE FROM manual_selections WHERE workspace_id = ? AND row_id = ?',
@@ -108,6 +115,7 @@ export async function DELETE(request, { params }) {
   await createLog(userId, username, 'reset_review', {
     workspaceId: id,
     studentRowId: rowId,
+    details: { workspaceName },
   });
 
   return NextResponse.json({ ok: true });

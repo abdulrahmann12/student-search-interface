@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useAuth } from './AuthContext';
 
 const WorkspaceContext = createContext(null);
 
@@ -231,6 +232,7 @@ function workspaceReducer(state, action) {
 }
 
 export function WorkspaceProvider({ children }) {
+  const { user, isLoading: isAuthLoading } = useAuth();
   const [state, dispatch] = useReducer(workspaceReducer, initialState);
   const [isHydrated, setIsHydrated] = useState(false);
   const [persistenceError, setPersistenceError] = useState('');
@@ -241,8 +243,22 @@ export function WorkspaceProvider({ children }) {
     stateRef.current = state;
   }, [state]);
 
-  // Load workspaces from the database on mount.
+  // Re-fetch workspaces whenever the authenticated user changes.
+  // This fixes the case where the context mounts on /login (no cookie → empty
+  // list), then the user logs in via client-side navigation and the provider
+  // never re-mounts. Keying on user.id ensures we also clear state on logout.
   useEffect(() => {
+    // Wait for auth to resolve so we don't issue a speculative fetch.
+    if (isAuthLoading) return;
+
+    if (!user) {
+      // Logged out – clear workspace state.
+      dispatch({ type: 'HYDRATE', payload: { workspaces: [], activeWorkspaceId: null } });
+      setIsHydrated(true);
+      return;
+    }
+
+    setIsHydrated(false);
     fetch('/api/workspaces')
       .then(async (res) => {
         if (res.status === 401) return { workspaces: [] };
@@ -260,7 +276,7 @@ export function WorkspaceProvider({ children }) {
         // Non-fatal: start with an empty workspace list
       })
       .finally(() => setIsHydrated(true));
-  }, []);
+  }, [user?.id, isAuthLoading]);
 
   const actions = useMemo(
     () => ({

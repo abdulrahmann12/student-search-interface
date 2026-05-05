@@ -1,7 +1,14 @@
 'use client';
 
 import { ActivityLogs, UserManager } from '@/src/components/AdminUserManager';
+import WorkspaceAssigner from '@/src/components/WorkspaceAssigner';
 import { useState } from 'react';
+
+const TABS = [
+  { key: 'users',      label: 'User Accounts'      },
+  { key: 'workspaces', label: 'Workspace Access'    },
+  { key: 'logs',       label: 'Activity Logs'       },
+];
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('users');
@@ -11,16 +18,13 @@ export default function AdminPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-ink">Admin Panel</h1>
         <p className="mt-1 text-sm text-muted">
-          Manage user accounts and review system activity logs.
+          Manage user accounts, workspace access, and review system activity logs.
         </p>
       </div>
 
       {/* Tabs */}
       <div className="mb-6 flex gap-1 border-b border-line">
-        {[
-          { key: 'users', label: 'User Accounts' },
-          { key: 'logs',  label: 'Activity Logs'  },
-        ].map((tab) => (
+        {TABS.map((tab) => (
           <button
             key={tab.key}
             type="button"
@@ -37,8 +41,10 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {activeTab === 'users' && <UserManager />}
-      {activeTab === 'logs'  && <ActivityLogs />}
+      {activeTab === 'users'      && <UserManager />}
+      {activeTab === 'workspaces' && <WorkspaceAssigner />}
+      {activeTab === 'logs'       && <ActivityLogs />}
     </main>
   );
 }
+
