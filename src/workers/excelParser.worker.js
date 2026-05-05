@@ -3,8 +3,7 @@ import {
     buildExportColumns,
     buildStudentRecord,
     coerceDisplayValue,
-    getSubjectColumns,
-  getSubjectDefinitions,
+    getSubjectDefinitions,
     isEmptyRow,
     resolveFixedColumnKey
 } from '../utils/students';
