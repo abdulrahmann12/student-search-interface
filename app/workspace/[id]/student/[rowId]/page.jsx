@@ -153,21 +153,21 @@ export default function StudentDetailPage() {
   }
 
   return (
-    <main className="mx-auto max-w-[1500px] px-4 pb-14 pt-8 sm:px-6 lg:px-8">
+    <main className="mx-auto max-w-[1500px] px-4 pb-8 pt-4 sm:px-6 lg:px-8">
       {/* Toolbar */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => router.push(`/workspace/${id}`)}
           className="btn-secondary"
         >
-          ← Back to students
+          ← Back
         </button>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted">Ctrl+S to save</span>
+          <span className="text-xs text-muted">Ctrl+S to save</span>
           <button type="button" onClick={handleSave} className="btn-primary">
-            Save Review
+            Save
           </button>
           <button type="button" onClick={handleReset} className="btn-secondary">
             Reset
@@ -178,25 +178,25 @@ export default function StudentDetailPage() {
             disabled={isExporting}
             className="btn-secondary"
           >
-            {isExporting ? 'Exporting...' : 'Export Report'}
+            {isExporting ? 'Exporting...' : 'Export'}
           </button>
         </div>
       </div>
 
-      {/* Progress stats */}
+      {/* Progress stats inline bar */}
       {summary ? (
-        <div className="mb-6 grid grid-cols-3 gap-4">
-          <div className="card p-4">
+        <div className="mb-3 grid grid-cols-3 gap-2">
+          <div className="card p-3">
             <p className="text-xs font-semibold uppercase text-muted">Reviewed</p>
-            <p className="mt-1 text-2xl font-bold text-ink">{summary.reviewedCount}</p>
+            <p className="mt-0.5 text-xl font-bold text-ink">{summary.reviewedCount}</p>
           </div>
-          <div className="card p-4">
+          <div className="card p-3">
             <p className="text-xs font-semibold uppercase text-muted">Conflicts</p>
-            <p className="mt-1 text-2xl font-bold text-amber-600">{summary.conflictCount}</p>
+            <p className="mt-0.5 text-xl font-bold text-amber-600">{summary.conflictCount}</p>
           </div>
-          <div className="card p-4">
+          <div className="card p-3">
             <p className="text-xs font-semibold uppercase text-muted">Pending</p>
-            <p className="mt-1 text-2xl font-bold text-ink">{summary.pendingCount}</p>
+            <p className="mt-0.5 text-xl font-bold text-ink">{summary.pendingCount}</p>
           </div>
         </div>
       ) : null}
@@ -213,7 +213,7 @@ export default function StudentDetailPage() {
       />
 
       {/* Prev / Next navigation */}
-      <div className="mt-6 flex items-center justify-between gap-4">
+      <div className="mt-3 flex items-center justify-between gap-4">
         {prevStudent ? (
           <button
             type="button"
@@ -226,8 +226,8 @@ export default function StudentDetailPage() {
           <span />
         )}
 
-        <span className="text-sm text-muted">
-          {studentIndex + 1} of {workspace.students.length}
+        <span className="text-xs text-muted">
+          {studentIndex + 1} / {workspace.students.length}
         </span>
 
         {nextStudent ? (

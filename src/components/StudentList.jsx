@@ -42,10 +42,10 @@ function getStatusTone(status) {
 
 function SkeletonRow() {
   return (
-    <div className="card p-4">
-      <div className="skeleton-shimmer h-4 w-24 rounded-full" />
-      <div className="mt-3 skeleton-shimmer h-6 w-40 rounded-2xl" />
-      <div className="mt-4 skeleton-shimmer h-12 rounded-3xl" />
+    <div className="flex h-10 items-center gap-3 rounded-[10px] border border-line bg-white px-3">
+      <div className="skeleton-shimmer h-3 w-16 rounded" />
+      <div className="skeleton-shimmer h-3 w-32 rounded" />
+      <div className="skeleton-shimmer ml-auto h-5 w-14 rounded" />
     </div>
   );
 }
@@ -73,43 +73,33 @@ export default function StudentList({
 
   if (!hasDataset) {
     return (
-      <div className="card p-10 text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted">No workspace yet</p>
-        <h2 className="mt-3 text-2xl font-bold text-ink">Upload a semester workbook to begin</h2>
-        <p className="mt-3 text-base leading-7 text-muted">
-          The student queue appears here once a workspace has been created from the uploaded system sheet.
-        </p>
+      <div className="card p-6 text-center">
+        <p className="text-sm font-semibold text-ink">Upload a semester workbook to begin</p>
+        <p className="mt-1 text-xs text-muted">The student list appears after a workspace is created.</p>
       </div>
     );
   }
 
   if (!students.length) {
     return (
-      <div className="card p-10 text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted">No matches</p>
-        <h2 className="mt-3 text-2xl font-bold text-ink">No students match the current search</h2>
-        <p className="mt-3 text-base leading-7 text-muted">
-          Nothing matches <span className="font-semibold">{query.trim()}</span>. Adjust the search terms or clear the filter.
-        </p>
+      <div className="card p-6 text-center">
+        <p className="text-sm font-semibold text-ink">No students match the current search</p>
+        <p className="mt-1 text-xs text-muted">Try adjusting or clearing the filter.</p>
       </div>
     );
   }
 
   return (
-    <div className="card overflow-hidden p-4 sm:p-5">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted">
-            Student Queue
-          </p>
-          <h2 className="mt-2 text-2xl font-bold text-ink">Review students quickly</h2>
-        </div>
-        <span className="rounded-[10px] bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700">
-          {students.length} in view
-        </span>
+    <div className="card overflow-hidden">
+      {/* Table header */}
+      <div className="grid grid-cols-[1fr_2fr_80px_auto] items-center gap-3 border-b border-line bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
+        <span>ID</span>
+        <span>Name</span>
+        <span className="text-center">Status</span>
+        <span className="text-right">{students.length} shown</span>
       </div>
 
-      <div className="space-y-3">
+      <div className="divide-y divide-line">
         {students.map((student) => {
           const reconciliation = reconciliationByRowId[student.rowId];
           const isActive = student.rowId === activeStudentRowId;
@@ -123,55 +113,42 @@ export default function StudentList({
               onFocus={() => onHighlightStudent(student.rowId)}
               onMouseEnter={() => onHighlightStudent(student.rowId)}
               className={[
-                'w-full rounded-[10px] border px-4 py-4 text-left transition duration-150',
+                'grid w-full grid-cols-[1fr_2fr_80px_auto] items-center gap-3 px-3 py-2 text-left text-sm transition duration-100',
                 isActive
-                  ? 'border-teal-300 bg-teal-50'
+                  ? 'bg-teal-50'
                   : isHighlighted
-                    ? 'border-slate-300 bg-white'
-                    : 'border-line bg-white hover:bg-slate-50',
+                    ? 'bg-slate-50'
+                    : 'bg-white hover:bg-slate-50',
               ].join(' ')}
             >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted">
-                    Student ID
-                  </p>
-                  <p className="mt-2 text-lg font-bold text-ink">
-                    <HighlightedText text={student.id} query={query} />
-                  </p>
-                  <p className="mt-2 truncate text-sm font-semibold text-ink">
-                    <HighlightedText text={getStudentDisplayName(student)} query={query} />
-                  </p>
-                  {getStudentSecondaryName(student) ? (
-                    <p className="mt-1 truncate text-sm text-muted font-arabic" dir="rtl">
-                      <HighlightedText text={getStudentSecondaryName(student)} query={query} />
-                    </p>
-                  ) : null}
-                </div>
+              <span className="truncate font-mono text-xs font-semibold text-ink">
+                <HighlightedText text={student.id} query={query} />
+              </span>
 
-                <span
-                  className={[
-                    'self-start rounded-full px-3 py-1 text-xs font-semibold',
-                    getStatusTone(reconciliation?.status ?? 'Pending'),
-                  ].join(' ')}
-                >
-                  {reconciliation?.status ?? 'Pending'}
-                </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-ink">
+                  <HighlightedText text={getStudentDisplayName(student)} query={query} />
+                </p>
+                {getStudentSecondaryName(student) ? (
+                  <p className="truncate text-xs text-muted font-arabic" dir="rtl">
+                    <HighlightedText text={getStudentSecondaryName(student)} query={query} />
+                  </p>
+                ) : null}
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-muted">
-                <span className="rounded-[10px] bg-slate-100 px-3 py-1">
-                  {reconciliation?.systemCourses.length ?? 0} in system
-                </span>
-                <span className="rounded-[10px] bg-slate-100 px-3 py-1">
-                  {reconciliation?.manualCourses.length ?? 0} on paper
-                </span>
-                <span className="rounded-[10px] bg-slate-100 px-3 py-1">
-                  {reconciliation?.missingInSystem.length ?? 0} paper-only
-                </span>
-                <span className="rounded-[10px] bg-slate-100 px-3 py-1">
-                  {reconciliation?.missingOnPaper.length ?? 0} system-only
-                </span>
+              <span
+                className={[
+                  'justify-self-center rounded-[10px] px-2 py-0.5 text-xs font-semibold',
+                  getStatusTone(reconciliation?.status ?? 'Pending'),
+                ].join(' ')}
+              >
+                {reconciliation?.status ?? 'Pending'}
+              </span>
+
+              <div className="flex gap-1.5 text-xs text-muted">
+                <span>{reconciliation?.systemCourses.length ?? 0} sys</span>
+                <span className="text-slate-300">|</span>
+                <span>{reconciliation?.manualCourses.length ?? 0} paper</span>
               </div>
             </button>
           );

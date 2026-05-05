@@ -155,13 +155,13 @@ export default function WorkspacePage() {
   }
 
   return (
-    <main className="mx-auto max-w-[1500px] px-4 pb-14 pt-8 sm:px-6 lg:px-8">
+    <main className="mx-auto max-w-[1500px] px-4 pb-8 pt-5 sm:px-6 lg:px-8">
       {/* Title + export */}
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-ink">{workspace.name}</h1>
+          <h1 className="text-lg font-bold text-ink">{workspace.name}</h1>
           {workspace.fileName ? (
-            <p className="mt-0.5 text-sm text-muted">{workspace.fileName}</p>
+            <p className="mt-0.5 text-xs text-muted">{workspace.fileName}</p>
           ) : null}
         </div>
         <button
@@ -175,37 +175,39 @@ export default function WorkspacePage() {
       </div>
 
       {/* Stats bar */}
-      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="card p-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="card p-3">
           <p className="text-xs font-semibold uppercase text-muted">Total</p>
-          <p className="mt-1 text-2xl font-bold text-ink">{summary.totalStudents}</p>
+          <p className="mt-0.5 text-xl font-bold text-ink">{summary.totalStudents}</p>
         </div>
-        <div className="card p-4">
+        <div className="card p-3">
           <p className="text-xs font-semibold uppercase text-muted">Matches</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-700">{summary.matchCount}</p>
+          <p className="mt-0.5 text-xl font-bold text-emerald-700">{summary.matchCount}</p>
         </div>
-        <div className="card p-4">
+        <div className="card p-3">
           <p className="text-xs font-semibold uppercase text-muted">Conflicts</p>
-          <p className="mt-1 text-2xl font-bold text-amber-600">{summary.conflictCount}</p>
+          <p className="mt-0.5 text-xl font-bold text-amber-600">{summary.conflictCount}</p>
         </div>
-        <div className="card p-4">
+        <div className="card p-3">
           <p className="text-xs font-semibold uppercase text-muted">Pending</p>
-          <p className="mt-1 text-2xl font-bold text-ink">{summary.pendingCount}</p>
+          <p className="mt-0.5 text-xl font-bold text-ink">{summary.pendingCount}</p>
         </div>
       </div>
 
       {/* Search */}
-      <SearchInput
-        inputRef={searchInputRef}
-        query={workspace.searchQuery}
-        onQueryChange={(q) => actions.setSearchQuery(workspace.id, q)}
-        resultCount={filteredStudents.length}
-        totalStudents={summary.totalStudents}
-        reviewedCount={summary.reviewedCount}
-        conflictCount={summary.conflictCount}
-        pendingCount={summary.pendingCount}
-        subjectCount={summary.totalSubjects}
-      />
+      <div className="mb-3">
+        <SearchInput
+          inputRef={searchInputRef}
+          query={workspace.searchQuery}
+          onQueryChange={(q) => actions.setSearchQuery(workspace.id, q)}
+          resultCount={filteredStudents.length}
+          totalStudents={summary.totalStudents}
+          reviewedCount={summary.reviewedCount}
+          conflictCount={summary.conflictCount}
+          pendingCount={summary.pendingCount}
+          subjectCount={summary.totalSubjects}
+        />
+      </div>
 
       {/* Student list */}
       <StudentList
