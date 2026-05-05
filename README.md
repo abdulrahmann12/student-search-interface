@@ -55,7 +55,8 @@ npm run start
 1. Push the repository to GitHub, GitLab, or Bitbucket.
 2. Import the repository in Vercel.
 3. Keep the detected framework preset as `Next.js`.
-4. Leave the default build command as `npm run build`.
-5. Deploy.
+4. Use Node.js `20.x` or newer. The project pins this with `package.json` engines and `.nvmrc`.
+5. Leave the install command as `npm install` and the build command as `npm run build`.
+6. Deploy.
 
-The app is fully client-side for parsing, review state, and export, so no external database or custom Vercel configuration is required.
+The app is fully client-side for parsing, review state, and export, so no external database is required. A small `vercel.json` is included to make the framework and commands explicit.
