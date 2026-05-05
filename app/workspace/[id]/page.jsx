@@ -53,10 +53,12 @@ export default function WorkspacePage() {
     [workspace, debouncedQuery],
   );
 
+  // Compute reconciliations only for visible (filtered) students to avoid an
+  // O(all-students) pass on every render.
   const reconciliationByRowId = useMemo(() => {
     if (!workspace) return {};
     return Object.fromEntries(
-      workspace.students.map((student) => [
+      filteredStudents.map((student) => [
         student.rowId,
         buildStudentReconciliation(
           student,
@@ -65,7 +67,7 @@ export default function WorkspacePage() {
         ),
       ]),
     );
-  }, [workspace]);
+  }, [filteredStudents, workspace]);
 
   const summary = useMemo(
     () => (workspace ? buildWorkspaceSummary(workspace) : EMPTY_SUMMARY),

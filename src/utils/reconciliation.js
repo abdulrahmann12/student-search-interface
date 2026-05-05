@@ -61,17 +61,34 @@ export function buildWorkspaceSummary(workspace) {
   const students = workspace?.students ?? [];
   const subjectColumns = workspace?.subjectColumns ?? [];
   const manualSelections = workspace?.manualSelections ?? {};
-  const reconciliations = students.map((student) =>
-    buildStudentReconciliation(student, subjectColumns, manualSelections),
-  );
+  let reviewedCount = 0;
+  let matchCount = 0;
+  let conflictCount = 0;
+
+  for (const student of students) {
+    const selection = manualSelections[student.rowId];
+    if (!selection?.reviewedAt) continue;
+    reviewedCount += 1;
+
+    const systemKeySet = new Set(
+      subjectColumns.filter((s) => student.subjectFlags[s.key] === 1).map((s) => s.key),
+    );
+    const manualKeys = selection.selectedCourseKeys ?? [];
+    const manualKeySet = new Set(manualKeys);
+    const hasConflict =
+      manualKeySet.size !== systemKeySet.size || manualKeys.some((k) => !systemKeySet.has(k));
+
+    if (hasConflict) conflictCount += 1;
+    else matchCount += 1;
+  }
 
   return {
     totalStudents: students.length,
     totalSubjects: subjectColumns.length,
-    reviewedCount: reconciliations.filter((student) => student.isReviewed).length,
-    matchCount: reconciliations.filter((student) => student.status === 'Match').length,
-    conflictCount: reconciliations.filter((student) => student.status === 'Conflict').length,
-    pendingCount: reconciliations.filter((student) => student.status === 'Pending').length,
+    reviewedCount,
+    matchCount,
+    conflictCount,
+    pendingCount: students.length - reviewedCount,
   };
 }
 

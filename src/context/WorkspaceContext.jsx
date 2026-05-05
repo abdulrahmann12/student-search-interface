@@ -296,12 +296,16 @@ export function WorkspaceProvider({ children }) {
       return;
     }
 
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      setPersistenceError('');
-    } catch {
-      setPersistenceError('Unable to persist workspaces in local storage for this browser.');
-    }
+    const timeoutId = setTimeout(() => {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        setPersistenceError('');
+      } catch {
+        setPersistenceError('Unable to persist workspaces in local storage for this browser.');
+      }
+    }, 400);
+
+    return () => clearTimeout(timeoutId);
   }, [isHydrated, state]);
 
   const actions = useMemo(
