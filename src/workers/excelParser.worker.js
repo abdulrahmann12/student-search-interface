@@ -4,6 +4,7 @@ import {
     buildStudentRecord,
     coerceDisplayValue,
     getSubjectColumns,
+  getSubjectDefinitions,
     isEmptyRow,
     resolveFixedColumnKey
 } from '../utils/students';
@@ -60,12 +61,12 @@ self.onmessage = (event) => {
       throw new Error('The first row must contain the column headers.');
     }
 
-    const requiredHeaders = ['id', 'name_en', 'name_ar'];
+    if (!exportColumns.some((column) => column.key === 'id')) {
+      throw new Error('Missing required column: id');
+    }
 
-    for (const header of requiredHeaders) {
-      if (!exportColumns.some((column) => column.key === header)) {
-        throw new Error(`Missing required column: ${header}`);
-      }
+    if (!exportColumns.some((column) => column.key === 'name_en' || column.key === 'name_ar')) {
+      throw new Error('Missing a student name column. Expected Name, Name EN, or Name AR.');
     }
 
     const students = rows
@@ -89,7 +90,7 @@ self.onmessage = (event) => {
       payload: {
         exportColumns,
         headerRows,
-        subjectColumns: getSubjectColumns(exportColumns),
+        subjectColumns: getSubjectDefinitions(exportColumns),
         students,
       },
     });

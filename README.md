@@ -1,6 +1,15 @@
-# Student Search Interface
+# Student Registration Reconciliation
 
-Student Search Interface is a Next.js app for uploading an Excel workbook, searching student records, managing selections, and exporting the updated result set.
+This project is a Next.js App Router application for reconciling system-generated semester registration data against paper registration forms.
+
+## What The App Does
+
+- Uploads a semester intersection workbook in Excel format.
+- Creates a saved workspace for each uploaded sheet and restores it from local storage after refresh.
+- Lets an operator search students by ID or name with debounced search.
+- Displays every semester course for the selected student so the operator can mirror the paper form with checkboxes.
+- Compares paper selections against the system workbook and tracks `Pending`, `Match`, and `Conflict` states.
+- Exports an Excel reconciliation report with student identity, status, and course mismatches.
 
 ## Stack
 
@@ -8,22 +17,31 @@ Student Search Interface is a Next.js app for uploading an Excel workbook, searc
 - React 18
 - Tailwind CSS
 - Web Worker based Excel parsing with `xlsx`
+- Client-side workspace persistence with local storage
+
+## Keyboard Workflow
+
+- `Arrow Up / Arrow Down`: move through the visible student queue.
+- `Enter`: open the highlighted student and focus the course checklist.
+- `Tab`: move between course checkboxes.
+- `Space`: toggle the focused course checkbox.
+- `Ctrl+S` / `Cmd+S`: save the current student review and focus the search field.
 
 ## Development
 
-1. Install dependencies:
+```bash
+npm install
+npm run dev
+```
 
-	```bash
-	npm install
-	```
+Open `http://localhost:3000`.
 
-2. Start the development server:
+## Quality Checks
 
-	```bash
-	npm run dev
-	```
-
-3. Open `http://localhost:3000`.
+```bash
+npm run lint
+npm run build
+```
 
 ## Production Build
 
@@ -35,9 +53,9 @@ npm run start
 ## Deploy To Vercel
 
 1. Push the repository to GitHub, GitLab, or Bitbucket.
-2. Import the project in Vercel.
-3. Keep the default framework preset as `Next.js`.
-4. Use the default build command `npm run build` and output settings detected by Vercel.
+2. Import the repository in Vercel.
+3. Keep the detected framework preset as `Next.js`.
+4. Leave the default build command as `npm run build`.
 5. Deploy.
 
-No custom Vercel configuration is required for this app.
+The app is fully client-side for parsing, review state, and export, so no external database or custom Vercel configuration is required.

@@ -8,14 +8,14 @@ export default function ExcelUpload({ onFileSelect, isLoading, fileName, error }
 
   const helperText = useMemo(() => {
     if (isLoading) {
-      return 'Parsing workbook and building the search index...';
+      return 'Parsing the system workbook and creating a new saved workspace...';
     }
 
     if (fileName) {
-      return `${fileName} is ready for live search and export.`;
+      return `${fileName} is loaded. Upload another sheet to create a separate semester workspace.`;
     }
 
-    return 'Drop an Excel file here or choose one from disk.';
+    return 'Drop the system-generated Excel sheet here or choose it from disk.';
   }, [fileName, isLoading]);
 
   const processFileList = useCallback(
@@ -53,12 +53,12 @@ export default function ExcelUpload({ onFileSelect, isLoading, fileName, error }
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted">
-              Excel Import
+              System Data Intake
             </p>
-            <h2 className="mt-2 text-2xl font-bold text-ink">Workbook intake</h2>
+            <h2 className="mt-2 text-2xl font-bold text-ink">Upload intersection sheet</h2>
           </div>
           <div className="rounded-full bg-accentSoft px-3 py-1 text-xs font-semibold text-accent">
-            {isLoading ? 'Indexing' : 'Ready'}
+            {isLoading ? 'Parsing' : 'Ready'}
           </div>
         </div>
 
@@ -79,7 +79,7 @@ export default function ExcelUpload({ onFileSelect, isLoading, fileName, error }
             XL
           </div>
           <p className="mt-5 text-lg font-semibold text-ink">
-            {isLoading ? 'Reading workbook...' : 'Drag and drop your Excel file'}
+            {isLoading ? 'Reading workbook...' : 'Create a new semester workspace'}
           </p>
           <p className="mt-2 text-sm leading-6 text-muted">{helperText}</p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -89,7 +89,7 @@ export default function ExcelUpload({ onFileSelect, isLoading, fileName, error }
               disabled={isLoading}
               className="btn-primary"
             >
-              {fileName ? 'Replace workbook' : 'Choose file'}
+              {fileName ? 'Upload another sheet' : 'Choose workbook'}
             </button>
             <span className="rounded-full border border-line px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted">
               .xlsx / .xls

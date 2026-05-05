@@ -1,9 +1,9 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Student Search Interface',
+  title: 'Student Registration Reconciliation',
   description:
-    'Upload an Excel workbook, search student records instantly, and export updated selections.',
+    'Compare semester intersection workbooks against paper registration forms and export a reconciliation report.',
 };
 
 export default function RootLayout({ children }) {

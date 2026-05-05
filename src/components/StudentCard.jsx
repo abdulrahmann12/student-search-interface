@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { getStudentDisplayName, getStudentSecondaryName } from '../utils/students';
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -34,123 +34,203 @@ function HighlightedText({ text, query, arabic = false }) {
   );
 }
 
-export default function StudentCard({ student, query, onToggleStudent }) {
-  const [selectedSubjects, setSelectedSubjects] = useState([]);
+function StatusBadge({ status }) {
+  const tone =
+    status === 'Match'
+      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-200'
+      : status === 'Conflict'
+        ? 'bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-200'
+        : 'bg-slate-100 text-slate-700 dark:bg-slate-800/80 dark:text-slate-200';
 
-  function handleSubjectClick(subject) {
-    setSelectedSubjects((currentSubjects) =>
-      currentSubjects.includes(subject)
-        ? currentSubjects.filter((currentSubject) => currentSubject !== subject)
-        : [...currentSubjects, subject],
+  return <span className={['rounded-full px-4 py-2 text-sm font-semibold', tone].join(' ')}>{status}</span>;
+}
+
+export default function StudentCard({
+  panelRef,
+  student,
+  query,
+  subjectColumns,
+  reconciliation,
+  onToggleCourse,
+  checkboxRefs,
+}) {
+  if (!student) {
+    return (
+      <article ref={panelRef} className="glass-panel surface-ring rounded-[32px] p-8" tabIndex={-1}>
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted">Student Detail</p>
+        <h2 className="mt-3 text-2xl font-bold text-ink">Select a student to review courses</h2>
+        <p className="mt-3 max-w-2xl text-base leading-7 text-muted">
+          Choose a student from the queue, compare the physical paper form to the system registrations, then save the review before moving to the next student.
+        </p>
+      </article>
     );
   }
 
+  const manualKeySet = new Set(reconciliation?.manualSelection.selectedCourseKeys ?? []);
+
   return (
-    <article
-      className={[
-        'glass-panel card-hover rounded-[30px] p-6 transition duration-300',
-        student.checked
-          ? 'border-teal-400/70 bg-teal-50/80 ring-1 ring-teal-300 dark:bg-teal-400/10'
-          : 'bg-surface',
-      ].join(' ')}
-    >
+    <article ref={panelRef} className="glass-panel surface-ring rounded-[32px] p-6 sm:p-7" tabIndex={-1}>
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted">Student ID</p>
-          <h3 className="mt-2 text-2xl font-bold text-ink">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted">Student Detail</p>
+          <h2 className="mt-2 text-3xl font-bold text-ink">
             <HighlightedText text={student.id} query={query} />
-          </h3>
+          </h2>
+          <p className="mt-3 text-lg font-semibold text-ink">
+            <HighlightedText text={getStudentDisplayName(student)} query={query} />
+          </p>
+          {getStudentSecondaryName(student) ? (
+            <p className="mt-2 text-base text-muted font-arabic" dir="rtl">
+              <HighlightedText text={getStudentSecondaryName(student)} query={query} arabic />
+            </p>
+          ) : null}
         </div>
 
-        <label className="inline-flex items-center gap-3 self-start rounded-full border border-line bg-white/80 px-4 py-3 text-sm font-semibold text-slate-700 dark:bg-slate-950/40 dark:text-slate-100">
-          <input
-            type="checkbox"
-            checked={student.checked}
-            onChange={(event) => onToggleStudent(student.rowId, event.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-          />
-          <span>{student.checked ? 'Selected' : 'Select student'}</span>
-        </label>
-      </div>
-
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-3xl bg-white/65 p-4 dark:bg-slate-950/35">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted">English name</p>
-          <p className="mt-2 text-lg font-semibold text-ink">
-            <HighlightedText text={student.name_en} query={query} />
-          </p>
-        </div>
-
-        <div className="rounded-3xl bg-white/65 p-4 dark:bg-slate-950/35">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted">Arabic name</p>
-          <p className="mt-2 text-lg font-semibold text-ink font-arabic" dir="rtl">
-            <HighlightedText text={student.name_ar} query={query} arabic />
-          </p>
+        <div className="flex flex-col items-start gap-3">
+          <StatusBadge status={reconciliation?.status ?? 'Pending'} />
+          {reconciliation?.manualSelection.reviewedAt ? (
+            <p className="text-sm text-muted">
+              Saved {new Date(reconciliation.manualSelection.reviewedAt).toLocaleString()}
+            </p>
+          ) : (
+            <p className="text-sm text-muted">Not saved yet</p>
+          )}
         </div>
       </div>
 
-      <div className="mt-6">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted">
-            Registered subjects
-          </p>
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-[24px] bg-white/70 p-4 dark:bg-slate-950/35">
+          <p className="text-sm text-muted">System courses</p>
+          <p className="mt-2 text-2xl font-bold text-ink">{reconciliation?.systemCourses.length ?? 0}</p>
+        </div>
+        <div className="rounded-[24px] bg-white/70 p-4 dark:bg-slate-950/35">
+          <p className="text-sm text-muted">Paper courses</p>
+          <p className="mt-2 text-2xl font-bold text-ink">{reconciliation?.manualCourses.length ?? 0}</p>
+        </div>
+        <div className="rounded-[24px] bg-white/70 p-4 dark:bg-slate-950/35">
+          <p className="text-sm text-muted">Missing in system</p>
+          <p className="mt-2 text-2xl font-bold text-ink">{reconciliation?.missingInSystem.length ?? 0}</p>
+        </div>
+        <div className="rounded-[24px] bg-white/70 p-4 dark:bg-slate-950/35">
+          <p className="text-sm text-muted">Missing on paper</p>
+          <p className="mt-2 text-2xl font-bold text-ink">{reconciliation?.missingOnPaper.length ?? 0}</p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 xl:grid-cols-2">
+        <div className="rounded-[26px] border border-line bg-white/70 p-4 dark:bg-slate-950/35">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted">Paper only</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {reconciliation?.missingInSystem.length ? (
+              reconciliation.missingInSystem.map((course) => (
+                <span key={course} className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-400/15 dark:text-amber-200">
+                  {course}
+                </span>
+              ))
+            ) : (
+              <span className="text-sm text-muted">No paper-only courses.</span>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-[26px] border border-line bg-white/70 p-4 dark:bg-slate-950/35">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted">System only</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {reconciliation?.missingOnPaper.length ? (
+              reconciliation.missingOnPaper.map((course) => (
+                <span key={course} className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-400/15 dark:text-rose-200">
+                  {course}
+                </span>
+              ))
+            ) : (
+              <span className="text-sm text-muted">No system-only courses.</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-[28px] border border-line bg-white/70 p-4 dark:bg-slate-950/35">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted">
+              Paper Registration Checklist
+            </p>
+            <p className="mt-2 text-sm text-muted">
+              Use Tab to move through courses and Space to toggle the focused checkbox.
+            </p>
+          </div>
           <span className="rounded-full bg-accentSoft px-3 py-1 text-xs font-semibold text-accent">
-            {student.registeredSubjects.length} active
+            {subjectColumns.length} courses this semester
           </span>
         </div>
-        <div className="mt-3 overflow-hidden rounded-3xl border border-line bg-white/65 dark:bg-slate-950/35">
-          <table className="w-full border-collapse text-sm">
-            <thead className="bg-slate-100/80 dark:bg-slate-900/60">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.22em] text-muted">
-                  Subject
-                </th>
-              </tr>
-            </thead>
 
-            <tbody className="divide-y divide-line">
-              {student.registeredSubjects.length ? (
-                student.registeredSubjects.map((subject) => {
-                  const isSelected = selectedSubjects.includes(subject);
+        <div className="mt-4 space-y-3">
+          {subjectColumns.map((subject, index) => {
+            const isSystemSelected = student.subjectFlags[subject.key] === 1;
+            const isManualSelected = manualKeySet.has(subject.key);
+            const isPaperOnly = reconciliation?.isReviewed && isManualSelected && !isSystemSelected;
+            const isSystemOnly = reconciliation?.isReviewed && isSystemSelected && !isManualSelected;
 
-                  return (
-                    <tr
-                      key={subject}
-                      className={[
-                        'transition-colors duration-200',
-                        isSelected
-                          ? 'bg-teal-50 dark:bg-teal-400/10'
-                          : 'hover:bg-slate-50 dark:hover:bg-slate-900/50',
-                      ].join(' ')}
-                    >
-                      <td className="w-full p-0">
-                        <button
-                          type="button"
-                          onClick={() => handleSubjectClick(subject)}
-                          className={[
-                            'flex w-full items-center justify-between px-4 py-4 text-left font-medium text-ink',
-                            isSelected ? 'text-teal-700 dark:text-teal-200' : '',
-                          ].join(' ')}
-                          aria-pressed={isSelected}
-                        >
-                          <span>{subject}</span>
-                          {isSelected ? (
-                            <span className="rounded-full bg-accentSoft px-2.5 py-1 text-xs font-semibold text-accent">
-                              Selected
-                            </span>
-                          ) : null}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td className="px-4 py-4 text-muted">No registered subjects</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+            return (
+              <label
+                key={subject.key}
+                className={[
+                  'flex cursor-pointer flex-col gap-4 rounded-[24px] border p-4 transition duration-200 sm:flex-row sm:items-center sm:justify-between',
+                  isPaperOnly
+                    ? 'border-amber-300 bg-amber-50/80 dark:border-amber-400/20 dark:bg-amber-400/10'
+                    : isSystemOnly
+                      ? 'border-rose-300 bg-rose-50/80 dark:border-rose-400/20 dark:bg-rose-400/10'
+                      : isManualSelected && isSystemSelected
+                        ? 'border-emerald-300 bg-emerald-50/70 dark:border-emerald-400/20 dark:bg-emerald-400/10'
+                        : 'border-line bg-white/80 dark:bg-slate-950/25',
+                ].join(' ')}
+              >
+                <div className="flex items-start gap-4">
+                  <input
+                    ref={(node) => {
+                      checkboxRefs.current[index] = node;
+                    }}
+                    type="checkbox"
+                    checked={isManualSelected}
+                    onChange={() => onToggleCourse(subject.key)}
+                    tabIndex={-1}
+                    data-course-toggle="true"
+                    className="mt-1 h-5 w-5 rounded border-slate-300 text-teal-600 focus:ring-2 focus:ring-teal-500"
+                  />
+
+                  <div>
+                    <p className="text-base font-semibold text-ink">{subject.displayName}</p>
+                    {subject.topLabel && subject.topLabel !== subject.displayName ? (
+                      <p className="mt-1 text-sm text-muted">{subject.topLabel}</p>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                  <span
+                    className={[
+                      'rounded-full px-3 py-1',
+                      isSystemSelected
+                        ? 'bg-slate-950 text-white dark:bg-teal-400 dark:text-slate-950'
+                        : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+                    ].join(' ')}
+                  >
+                    {isSystemSelected ? 'In system' : 'Not in system'}
+                  </span>
+                  <span
+                    className={[
+                      'rounded-full px-3 py-1',
+                      isManualSelected
+                        ? 'bg-accentSoft text-accent'
+                        : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+                    ].join(' ')}
+                  >
+                    {isManualSelected ? 'Checked on paper' : 'Not checked'}
+                  </span>
+                </div>
+              </label>
+            );
+          })}
         </div>
       </div>
     </article>
