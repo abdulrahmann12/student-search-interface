@@ -2,12 +2,20 @@
 
 import { useAuth } from '@/src/context/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function LoginForm() {
-  const { setUser } = useAuth();
+  const { user, setUser } = useAuth();
   const router       = useRouter();
   const searchParams = useSearchParams();
+
+  // Redirect already-authenticated users away from the login page
+  useEffect(() => {
+    if (user) {
+      const next = searchParams.get('next');
+      router.replace(next && next.startsWith('/') ? next : '/');
+    }
+  }, [user, router, searchParams]);
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -36,7 +44,11 @@ export default function LoginForm() {
       setUser(data.user);
 
       const next = searchParams.get('next');
-      router.push(next && next.startsWith('/') ? next : '/');
+      const destination = next && next.startsWith('/') ? next : '/';
+      // Refresh the router cache so the new session cookie is picked up,
+      // then navigate to the destination.
+      router.refresh();
+      router.push(destination);
     } catch {
       setError('Unable to reach the server. Please try again.');
     } finally {
