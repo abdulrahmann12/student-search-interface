@@ -3,11 +3,15 @@ export const FIXED_COLUMNS = ['id', 'name_en', 'name_ar'];
 const FIXED_COLUMN_ALIASES = {
   id: ['id', 'student id', 'student_id', 'studentid'],
   name_en: [
+    'name',
     'name_en',
     'name en',
+    'name english',
     'english name',
+    'student name',
     'student name english',
     'student english name',
+    'student_name',
     'student_name_english',
   ],
   name_ar: [
@@ -81,13 +85,23 @@ export function isEmptyRow(record) {
 }
 
 export function getSubjectColumns(columnOrder) {
+  return getSubjectDefinitions(columnOrder).map((column) => column.displayName);
+}
+
+export function getSubjectDefinitions(columnOrder) {
   return columnOrder
     .filter((column) => !column.isFixed)
-    .map((column) => column.displayName);
+    .map((column) => ({
+      key: column.key,
+      index: column.index,
+      displayName: column.displayName,
+      topLabel: column.topLabel,
+      bottomLabel: column.bottomLabel,
+    }));
 }
 
 export function buildStudentRecord(record, columnOrder, rowIndex) {
-  const subjectColumns = columnOrder.filter((column) => !column.isFixed);
+  const subjectColumns = getSubjectDefinitions(columnOrder);
   const subjectFlags = subjectColumns.reduce((accumulator, subject) => {
     accumulator[subject.key] = toRegistrationFlag(record[subject.key]);
     return accumulator;
@@ -164,4 +178,19 @@ export function countSelectedStudents(students, modifications) {
     (count, student) => count + (modifications[student.rowId]?.checked ? 1 : 0),
     0,
   );
+}
+
+export function getStudentDisplayName(student) {
+  return coerceDisplayValue(student?.name_en) || coerceDisplayValue(student?.name_ar) || 'Unnamed student';
+}
+
+export function getStudentSecondaryName(student) {
+  const primaryName = coerceDisplayValue(student?.name_en);
+  const secondaryName = coerceDisplayValue(student?.name_ar);
+
+  if (!primaryName || !secondaryName || primaryName === secondaryName) {
+    return '';
+  }
+
+  return secondaryName;
 }

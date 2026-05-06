@@ -2,45 +2,55 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ExcelUpload from './components/ExcelUpload';
 import SearchInput from './components/SearchInput';
 import SelectionControls from './components/SelectionControls';
+import StudentCard from './components/StudentCard';
 import StudentList from './components/StudentList';
-import ThemeToggle from './components/ThemeToggle';
+import WorkspaceSidebar from './components/WorkspaceSidebar';
+import { WorkspaceProvider, useWorkspaceContext } from './context/WorkspaceContext';
 import useDebouncedValue from './hooks/useDebouncedValue';
-import { exportStudentsToExcel } from './utils/excel';
-import { countSelectedStudents, filterStudents } from './utils/students';
+import { exportReconciliationReport } from './utils/excel';
+import { buildStudentReconciliation, buildWorkspaceSummary } from './utils/reconciliation';
+import { filterStudents } from './utils/students';
 
-const THEME_STORAGE_KEY = 'student-search-theme';
+function deriveWorkspaceName(fileName) {
+  const normalized = String(fileName || '')
+    .replace(/\.[^.]+$/, '')
+    .replace(/[_-]+/g, ' ')
+    .trim();
 
-function getInitialTheme() {
-  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-
-  if (storedTheme === 'dark' || storedTheme === 'light') {
-    return storedTheme;
-  }
-
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return normalized || 'Semester Workspace';
 }
 
-export default function App() {
-  const [theme, setTheme] = useState(getInitialTheme);
-  const [students, setStudents] = useState([]);
-  const [exportColumns, setExportColumns] = useState([]);
-  const [headerRows, setHeaderRows] = useState([]);
-  const [subjectColumns, setSubjectColumns] = useState([]);
-  const [modifications, setModifications] = useState({});
-  const [query, setQuery] = useState('');
-  const [fileName, setFileName] = useState('');
+function createEmptySummary() {
+  return {
+    totalStudents: 0,
+    totalSubjects: 0,
+    reviewedCount: 0,
+    matchCount: 0,
+    conflictCount: 0,
+    pendingCount: 0,
+  };
+}
+
+function AppShell() {
+  const { activeWorkspace, workspaces, actions, isHydrated, persistenceError } =
+    useWorkspaceContext();
   const [error, setError] = useState('');
   const [isParsing, setIsParsing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [pendingFileName, setPendingFileName] = useState('');
+  const [highlightedStudentRowId, setHighlightedStudentRowId] = useState(null);
   const workerRef = useRef(null);
   const latestParseIdRef = useRef(0);
-
-  const debouncedQuery = useDebouncedValue(query, 300);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-  }, [theme]);
+  const pendingWorkspaceNameRef = useRef('');
+  const pendingFileNameRef = useRef('');
+  const searchInputRef = useRef(null);
+  const detailPanelRef = useRef(null);
+  const courseCheckboxRefs = useRef([]);
+  const debouncedQuery = useDebouncedValue(
+    activeWorkspace?.searchQuery ?? '',
+    250,
+    activeWorkspace?.id ?? 'no-workspace',
+  );
 
   useEffect(() => {
     const worker = new Worker(new URL('./workers/excelParser.worker.js', import.meta.url), {
@@ -56,24 +66,23 @@ export default function App() {
       }
 
       if (type === 'success') {
-        setStudents(payload.students);
-        setExportColumns(payload.exportColumns);
-        setHeaderRows(payload.headerRows);
-        setSubjectColumns(payload.subjectColumns);
-        setModifications({});
+        actions.createWorkspace({
+          ...payload,
+          fileName: pendingFileNameRef.current,
+          name: pendingWorkspaceNameRef.current,
+        });
         setError('');
         setIsParsing(false);
+        setPendingFileName('');
+        pendingFileNameRef.current = '';
+        pendingWorkspaceNameRef.current = '';
         return;
       }
 
       if (type === 'error') {
-        setStudents([]);
-        setExportColumns([]);
-        setHeaderRows([]);
-        setSubjectColumns([]);
-        setModifications({});
         setError(workerError || 'Unable to parse the selected workbook.');
         setIsParsing(false);
+        setPendingFileName('');
       }
     };
 
@@ -83,22 +92,137 @@ export default function App() {
       worker.removeEventListener('message', handleWorkerMessage);
       worker.terminate();
     };
+  }, [actions]);
+
+  const filteredStudents = useMemo(() => {
+    if (!activeWorkspace) {
+      return [];
+    }
+
+    return filterStudents(activeWorkspace.students, {}, debouncedQuery);
+  }, [activeWorkspace, debouncedQuery]);
+
+  const reconciliationByRowId = useMemo(() => {
+    if (!activeWorkspace) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      activeWorkspace.students.map((student) => [
+        student.rowId,
+        buildStudentReconciliation(
+          student,
+          activeWorkspace.subjectColumns,
+          activeWorkspace.manualSelections,
+        ),
+      ]),
+    );
+  }, [activeWorkspace]);
+
+  const workspaceSummary = useMemo(
+    () => (activeWorkspace ? buildWorkspaceSummary(activeWorkspace) : createEmptySummary()),
+    [activeWorkspace],
+  );
+
+  const workspaceSummaries = useMemo(
+    () =>
+      Object.fromEntries(
+        workspaces.map((workspace) => [workspace.id, buildWorkspaceSummary(workspace)]),
+      ),
+    [workspaces],
+  );
+
+  const activeStudent = useMemo(() => {
+    if (!activeWorkspace?.selectedStudentRowId) {
+      return null;
+    }
+
+    return (
+      activeWorkspace.students.find(
+        (student) => student.rowId === activeWorkspace.selectedStudentRowId,
+      ) ?? null
+    );
+  }, [activeWorkspace]);
+
+  const activeReconciliation = activeStudent
+    ? reconciliationByRowId[activeStudent.rowId] ?? null
+    : null;
+
+  useEffect(() => {
+    courseCheckboxRefs.current = [];
+  }, [activeStudent?.rowId, activeWorkspace?.id]);
+
+  useEffect(() => {
+    if (!activeWorkspace || !filteredStudents.length) {
+      setHighlightedStudentRowId(null);
+      return;
+    }
+
+    if (filteredStudents.some((student) => student.rowId === highlightedStudentRowId)) {
+      return;
+    }
+
+    if (
+      filteredStudents.some((student) => student.rowId === activeWorkspace.selectedStudentRowId)
+    ) {
+      setHighlightedStudentRowId(activeWorkspace.selectedStudentRowId);
+      return;
+    }
+
+    setHighlightedStudentRowId(filteredStudents[0].rowId);
+  }, [activeWorkspace, filteredStudents, highlightedStudentRowId]);
+
+  useEffect(() => {
+    if (!activeWorkspace || !filteredStudents.length) {
+      return;
+    }
+
+    if (
+      filteredStudents.some((student) => student.rowId === activeWorkspace.selectedStudentRowId)
+    ) {
+      return;
+    }
+
+    actions.setSelectedStudent(activeWorkspace.id, filteredStudents[0].rowId);
+  }, [actions, activeWorkspace, filteredStudents]);
+
+  const focusSearch = useCallback(() => {
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
   }, []);
 
-  const filteredStudents = useMemo(
-    () => filterStudents(students, modifications, debouncedQuery),
-    [students, modifications, debouncedQuery],
-  );
+  const focusCourseCheckbox = useCallback((targetIndex = 0) => {
+    const inputs = courseCheckboxRefs.current.filter(Boolean);
 
-  const selectedCount = useMemo(
-    () => countSelectedStudents(students, modifications),
-    [students, modifications],
-  );
+    if (!inputs.length) {
+      return false;
+    }
 
-  const allVisibleSelected = useMemo(
-    () => filteredStudents.length > 0 && filteredStudents.every((student) => student.checked),
-    [filteredStudents],
-  );
+    const nextIndex = ((targetIndex % inputs.length) + inputs.length) % inputs.length;
+    inputs[nextIndex].focus();
+    return true;
+  }, []);
+
+  const moveCourseFocus = useCallback((delta) => {
+    const inputs = courseCheckboxRefs.current.filter(Boolean);
+
+    if (!inputs.length) {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    const currentIndex = inputs.findIndex((input) => input === activeElement);
+    const nextIndex =
+      currentIndex === -1
+        ? delta > 0
+          ? 0
+          : inputs.length - 1
+        : (currentIndex + delta + inputs.length) % inputs.length;
+
+    inputs[nextIndex].focus();
+  }, []);
 
   const handleFileSelect = useCallback(async (file) => {
     if (!/\.xlsx?$/i.test(file.name)) {
@@ -113,9 +237,9 @@ export default function App() {
 
     const parseId = latestParseIdRef.current + 1;
     latestParseIdRef.current = parseId;
-
-    setFileName(file.name);
-    setQuery('');
+    pendingWorkspaceNameRef.current = deriveWorkspaceName(file.name);
+    pendingFileNameRef.current = file.name;
+    setPendingFileName(file.name);
     setError('');
     setIsParsing(true);
 
@@ -126,49 +250,42 @@ export default function App() {
     } catch (caughtError) {
       setIsParsing(false);
       setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : 'Unable to read the selected workbook.',
+        caughtError instanceof Error ? caughtError.message : 'Unable to read the selected workbook.',
       );
     }
   }, []);
 
-  const handleToggleTheme = useCallback(() => {
-    setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
-  }, []);
+  const handleToggleCourse = useCallback(
+    (courseKey) => {
+      if (!activeWorkspace || !activeStudent) {
+        return;
+      }
 
-  const handleToggleStudent = useCallback((rowId, checked) => {
-    setModifications((current) => ({
-      ...current,
-      [rowId]: {
-        ...current[rowId],
-        checked,
-      },
-    }));
-  }, []);
+      actions.toggleManualCourse(activeWorkspace.id, activeStudent.rowId, courseKey);
+    },
+    [actions, activeStudent, activeWorkspace],
+  );
 
-  const handleToggleVisible = useCallback(() => {
-    setModifications((current) => {
-      const nextChecked = !allVisibleSelected;
-      const nextState = { ...current };
+  const handleSaveCurrent = useCallback(() => {
+    if (!activeWorkspace || !activeStudent) {
+      return;
+    }
 
-      filteredStudents.forEach((student) => {
-        nextState[student.rowId] = {
-          ...nextState[student.rowId],
-          checked: nextChecked,
-        };
-      });
+    actions.saveStudentReview(activeWorkspace.id, activeStudent.rowId);
+    focusSearch();
+  }, [actions, activeStudent, activeWorkspace, focusSearch]);
 
-      return nextState;
-    });
-  }, [allVisibleSelected, filteredStudents]);
+  const handleResetCurrent = useCallback(() => {
+    if (!activeWorkspace || !activeStudent) {
+      return;
+    }
 
-  const handleClearAll = useCallback(() => {
-    setModifications({});
-  }, []);
+    actions.resetStudentReview(activeWorkspace.id, activeStudent.rowId);
+    focusCourseCheckbox(0);
+  }, [actions, activeStudent, activeWorkspace, focusCourseCheckbox]);
 
   const handleExport = useCallback(async () => {
-    if (!students.length) {
+    if (!activeWorkspace) {
       return;
     }
 
@@ -177,132 +294,295 @@ export default function App() {
 
     try {
       await new Promise((resolve) => requestAnimationFrame(resolve));
-      exportStudentsToExcel({ students, modifications, exportColumns, headerRows });
+      exportReconciliationReport(activeWorkspace);
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : 'Unable to export the updated workbook.',
+          : 'Unable to export the reconciliation report.',
       );
     } finally {
       setIsExporting(false);
     }
-  }, [students, modifications, exportColumns, headerRows]);
+  }, [activeWorkspace]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        if (activeStudent) {
+          event.preventDefault();
+          handleSaveCurrent();
+        }
+
+        return;
+      }
+
+      if (!activeWorkspace || !filteredStudents.length) {
+        return;
+      }
+
+      const activeElement = document.activeElement;
+      const isSearchFocused = activeElement === searchInputRef.current;
+      const isCourseFocused =
+        activeElement instanceof HTMLElement && activeElement.dataset.courseToggle === 'true';
+      const isDetailFocused = detailPanelRef.current?.contains(activeElement);
+      const isTypingField =
+        activeElement instanceof HTMLTextAreaElement ||
+        (activeElement instanceof HTMLInputElement &&
+          activeElement !== searchInputRef.current &&
+          activeElement.type !== 'checkbox') ||
+        activeElement?.isContentEditable;
+
+      if (
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        (event.key === 'ArrowDown' || event.key === 'ArrowUp') &&
+        (isSearchFocused || !isTypingField)
+      ) {
+        event.preventDefault();
+
+        const currentIndex = filteredStudents.findIndex(
+          (student) => student.rowId === highlightedStudentRowId,
+        );
+        const safeIndex = currentIndex === -1 ? 0 : currentIndex;
+        const nextIndex =
+          event.key === 'ArrowDown'
+            ? Math.min(safeIndex + 1, filteredStudents.length - 1)
+            : Math.max(safeIndex - 1, 0);
+
+        setHighlightedStudentRowId(filteredStudents[nextIndex].rowId);
+        return;
+      }
+
+      if (
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        event.key === 'Enter' &&
+        (isSearchFocused || activeElement === document.body)
+      ) {
+        event.preventDefault();
+        const targetRowId = highlightedStudentRowId ?? filteredStudents[0]?.rowId;
+
+        if (!targetRowId) {
+          return;
+        }
+
+        actions.setSelectedStudent(activeWorkspace.id, targetRowId);
+        requestAnimationFrame(() => {
+          focusCourseCheckbox(0);
+        });
+        return;
+      }
+
+      if (
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        event.key === 'Tab' &&
+        activeStudent &&
+        courseCheckboxRefs.current.filter(Boolean).length &&
+        (isSearchFocused || isCourseFocused || isDetailFocused || activeElement === document.body)
+      ) {
+        event.preventDefault();
+        moveCourseFocus(event.shiftKey ? -1 : 1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    actions,
+    activeStudent,
+    activeWorkspace,
+    filteredStudents,
+    focusCourseCheckbox,
+    handleSaveCurrent,
+    highlightedStudentRowId,
+    moveCourseFocus,
+  ]);
+
+  const subjectPreview = activeWorkspace?.subjectColumns ?? [];
+  const currentFileName = pendingFileName || activeWorkspace?.fileName || '';
 
   return (
-    <main className="relative mx-auto max-w-6xl px-4 pb-14 pt-6 sm:px-6 lg:px-8">
-      <div className="absolute inset-x-0 top-0 -z-10 h-72 bg-gradient-to-b from-white/35 to-transparent dark:from-white/5" />
-
-      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.32em] text-muted">
-            Student Registry
-          </p>
-          <h1 className="mt-2 text-4xl font-black tracking-tight text-ink sm:text-5xl">
-            Search, select, and export with clarity.
-          </h1>
-          <p className="mt-3 max-w-3xl text-base leading-7 text-muted sm:text-lg">
-            Upload an Excel workbook, search instantly across ID and multilingual names, review subject registrations, and export a clean updated file with checked rows.
-          </p>
+    <main className="min-h-screen bg-canvas">
+      <header className="border-b border-line bg-white">
+        <div className="mx-auto flex max-w-[1500px] items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <div>
+            <h1 className="text-base font-bold text-ink">Student Registration Reconciliation</h1>
+            <p className="text-sm text-muted">Review paper forms against the system workbook</p>
+          </div>
+          {!isHydrated ? (
+            <span className="rounded-[10px] bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-600">
+              Restoring workspaces...
+            </span>
+          ) : null}
         </div>
-
-        <ThemeToggle theme={theme} onToggle={handleToggleTheme} />
       </header>
 
-      <section className="mb-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="glass-panel surface-ring overflow-hidden rounded-[36px] p-6 sm:p-8">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="rounded-full bg-accentSoft px-4 py-2 text-sm font-semibold text-accent">
-              Debounced search
-            </span>
-            <span className="rounded-full bg-white/75 px-4 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-800/70 dark:text-slate-100">
-              Worker-backed parsing
-            </span>
-            <span className="rounded-full bg-white/75 px-4 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-800/70 dark:text-slate-100">
-              Excel export
-            </span>
-          </div>
+      <div className="mx-auto max-w-[1500px] px-4 pb-14 pt-6 sm:px-6 lg:px-8">
+      <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
+        <aside className="space-y-6">
+          <ExcelUpload
+            onFileSelect={handleFileSelect}
+            isLoading={isParsing}
+            fileName={currentFileName}
+            error={error}
+          />
 
-          <div className="mt-8 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-[28px] bg-white/70 p-5 dark:bg-slate-950/30">
-              <p className="text-sm text-muted">Students loaded</p>
-              <p className="mt-2 text-3xl font-bold text-ink">{students.length}</p>
-            </div>
-            <div className="rounded-[28px] bg-white/70 p-5 dark:bg-slate-950/30">
-              <p className="text-sm text-muted">Subjects detected</p>
-              <p className="mt-2 text-3xl font-bold text-ink">{subjectColumns.length}</p>
-            </div>
-            <div className="rounded-[28px] bg-white/70 p-5 dark:bg-slate-950/30">
-              <p className="text-sm text-muted">Selected students</p>
-              <p className="mt-2 text-3xl font-bold text-ink">{selectedCount}</p>
-            </div>
-          </div>
+          <WorkspaceSidebar
+            isHydrated={isHydrated}
+            workspaces={workspaces}
+            activeWorkspaceId={activeWorkspace?.id ?? null}
+            workspaceSummaries={workspaceSummaries}
+            onSelectWorkspace={actions.setActiveWorkspace}
+            onRemoveWorkspace={actions.removeWorkspace}
+            persistenceError={persistenceError}
+          />
 
-          <div className="mt-8">
+          <div className="card p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted">
-              Subject preview
+              Workspace Snapshot
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {subjectColumns.length ? (
-                <>
-                  {subjectColumns.slice(0, 10).map((subject) => (
-                    <span key={subject} className="subject-pill">
-                      {subject}
-                    </span>
-                  ))}
-                  {subjectColumns.length > 10 ? (
-                    <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                      +{subjectColumns.length - 10} more
-                    </span>
-                  ) : null}
-                </>
-              ) : (
-                <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                  Subject columns appear here after upload.
-                </span>
-              )}
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-[10px] bg-slate-50 p-4">
+                <p className="text-sm text-muted">Students</p>
+                <p className="mt-1 text-2xl font-bold text-ink">{workspaceSummary.totalStudents}</p>
+              </div>
+              <div className="rounded-[10px] bg-slate-50 p-4">
+                <p className="text-sm text-muted">Courses</p>
+                <p className="mt-1 text-2xl font-bold text-ink">{workspaceSummary.totalSubjects}</p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted">
+                Course Preview
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {subjectPreview.length ? (
+                  <>
+                    {subjectPreview.slice(0, 8).map((subject) => (
+                      <span key={subject.key} className="subject-pill">
+                        {subject.displayName}
+                      </span>
+                    ))}
+                    {subjectPreview.length > 8 ? (
+                      <span className="rounded-[10px] bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                        +{subjectPreview.length - 8} more
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  <span className="rounded-[10px] bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                    Upload a workbook to preview courses.
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </aside>
 
-        <ExcelUpload
-          onFileSelect={handleFileSelect}
-          isLoading={isParsing}
-          fileName={fileName}
-          error={error}
-        />
-      </section>
+        <section className="min-w-0">
+          <SearchInput
+            inputRef={searchInputRef}
+            query={activeWorkspace?.searchQuery ?? ''}
+            onQueryChange={(nextQuery) => {
+              if (activeWorkspace) {
+                actions.setSearchQuery(activeWorkspace.id, nextQuery);
+              }
+            }}
+            disabled={!activeWorkspace || isParsing}
+            resultCount={filteredStudents.length}
+            totalStudents={workspaceSummary.totalStudents}
+            reviewedCount={workspaceSummary.reviewedCount}
+            conflictCount={workspaceSummary.conflictCount}
+            pendingCount={workspaceSummary.pendingCount}
+            fileName={activeWorkspace?.fileName ?? ''}
+            subjectCount={workspaceSummary.totalSubjects}
+            workspaceName={activeWorkspace?.name ?? ''}
+            isLoading={isParsing}
+          />
 
-      <SearchInput
-        query={query}
-        onQueryChange={setQuery}
-        disabled={!students.length || isParsing}
-        resultCount={filteredStudents.length}
-        totalStudents={students.length}
-        selectedCount={selectedCount}
-        fileName={fileName}
-        subjectCount={subjectColumns.length}
-        isLoading={isParsing}
-      />
+          <div className="mb-6 grid gap-4 md:grid-cols-4">
+            <div className="card p-4">
+              <p className="text-sm text-muted">Matches</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{workspaceSummary.matchCount}</p>
+            </div>
+            <div className="card p-4">
+              <p className="text-sm text-muted">Conflicts</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{workspaceSummary.conflictCount}</p>
+            </div>
+            <div className="card p-4">
+              <p className="text-sm text-muted">Pending review</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{workspaceSummary.pendingCount}</p>
+            </div>
+            <div className="card p-4">
+              <p className="text-sm text-muted">Workspaces saved</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{workspaces.length}</p>
+            </div>
+          </div>
 
-      <SelectionControls
-        visibleCount={filteredStudents.length}
-        totalCount={students.length}
-        selectedCount={selectedCount}
-        allVisibleSelected={allVisibleSelected}
-        onToggleVisible={handleToggleVisible}
-        onClearAll={handleClearAll}
-        onExport={handleExport}
-        isExporting={isExporting}
-      />
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1fr)]">
+            <StudentList
+              students={filteredStudents}
+              isLoading={isParsing}
+              hasDataset={Boolean(activeWorkspace)}
+              query={debouncedQuery}
+              activeStudentRowId={activeWorkspace?.selectedStudentRowId ?? null}
+              highlightedStudentRowId={highlightedStudentRowId}
+              onSelectStudent={(rowId) => {
+                if (!activeWorkspace) {
+                  return;
+                }
 
-      <StudentList
-        students={filteredStudents}
-        isLoading={isParsing}
-        hasDataset={students.length > 0}
-        query={debouncedQuery}
-        onToggleStudent={handleToggleStudent}
-      />
+                actions.setSelectedStudent(activeWorkspace.id, rowId);
+                setHighlightedStudentRowId(rowId);
+              }}
+              onHighlightStudent={setHighlightedStudentRowId}
+              reconciliationByRowId={reconciliationByRowId}
+            />
+
+            <div className="space-y-6">
+              <SelectionControls
+                hasWorkspace={Boolean(activeWorkspace)}
+                activeStudent={activeStudent}
+                reconciliation={activeReconciliation}
+                reviewedCount={workspaceSummary.reviewedCount}
+                conflictCount={workspaceSummary.conflictCount}
+                pendingCount={workspaceSummary.pendingCount}
+                onSaveCurrent={handleSaveCurrent}
+                onResetCurrent={handleResetCurrent}
+                onExport={handleExport}
+                isExporting={isExporting}
+              />
+
+              <StudentCard
+                panelRef={detailPanelRef}
+                student={activeStudent}
+                query={debouncedQuery}
+                subjectColumns={activeWorkspace?.subjectColumns ?? []}
+                reconciliation={activeReconciliation}
+                onToggleCourse={handleToggleCourse}
+                checkboxRefs={courseCheckboxRefs}
+              />
+            </div>
+          </div>
+        </section>
+      </div>
+      </div>
     </main>
+  );
+}
+
+export default function App() {
+  return (
+    <WorkspaceProvider>
+      <AppShell />
+    </WorkspaceProvider>
   );
 }

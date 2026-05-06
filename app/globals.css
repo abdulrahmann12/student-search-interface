@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --color-canvas: #f1f5f9;
+    --color-surface: #ffffff;
+    --color-elevated: #ffffff;
+    --color-line: #e2e8f0;
+    --color-ink: #1e293b;
+    --color-muted: #64748b;
+    --color-accent: #0f766e;
+    --color-accent-soft: #f0fdfa;
+    --color-success-soft: #ecfdf5;
+  }
+
+  * {
+    @apply border-line;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply min-h-screen bg-canvas font-sans text-ink antialiased;
+    margin: 0;
+  }
+
+  ::selection {
+    background: rgba(15, 118, 110, 0.2);
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-[10px] border border-line bg-white;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-[10px] bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white transition duration-150 hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-[10px] border border-line bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition duration-150 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .subject-pill {
+    @apply rounded-[10px] bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700;
+  }
+
+  .font-arabic {
+    font-family: 'IBM Plex Sans Arabic', 'Segoe UI', sans-serif;
+  }
+
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      #f1f5f9 25%,
+      #e2e8f0 37%,
+      #f1f5f9 63%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+  }
+
+  .input-field {
+    @apply rounded-[10px] border border-line bg-white px-4 py-2.5 text-sm text-ink outline-none transition placeholder:text-slate-400 focus:border-teal-400 focus:ring-2 focus:ring-teal-100 disabled:opacity-60;
+  }
+}

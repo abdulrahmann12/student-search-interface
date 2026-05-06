@@ -1,2 +1,5 @@
+.next
 dist
 node_modules
+out
+.vercel
